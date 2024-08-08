@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>二维码扫描</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        #user-info, #token-info {
+            background-color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        #canvas {
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>用户信息</h1>
+    <div id="user-info">加载中...</div>
+    <div id="token-info"></div>
+    <div>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div>
+        <canvas id="canvas" hidden></canvas>
+    </div>
+    <div style="width: 50%; margin-left: auto; margin-right: auto;">
+        <button id="confirm" hidden onclick="handleConfirm()">确认登录</button>
+    </div>
+</div>
+
+<script>
+    // 页面加载完毕后立即执行
+    window.onload = function() {
+      // 这里用fetch代替Ajax，因为fetch是现代的API，使用起来更简洁
+      fetch('http://127.0.0.1:8080/mobile/login', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          // 如果需要的话，在这里添加其他的头信息，比如认证令牌
+          // 'Authorization': 'Bearer your-token-here',
+        }
+      })
+      .then(response => {
+        // 检查响应状态码
+        if (!response.ok) {
+          throw new Error('网络响应不是ok状态');
+        }
+        return response.json(); // 解析JSON数据
+      })
+      .then(data => {
+        // 在这里处理你的数据
+        document.getElementById('user-info').textContent = JSON.stringify(data, null, 2);
+      })
+      .catch(error => {
+        // 在这里处理错误
+        console.error('请求用户信息失败:', error);
+        document.getElementById('user-info').textContent = '无法加载用户信息。';
+      });
+      document.getElementById('fileInput').addEventListener('change', handleFileSelect, false);
+    };
+
+    function handleConfirm(event) {
+      const uJson = JSON.parse(document.getElementById('user-info').textContent);
+      const token = document.getElementById('token-info').textContent
+      console.info(token);
+      fetch('http://127.0.0.1:8080/mobile/confirm?code=' + token + '&username=' + uJson.username + '&token=' + uJson.token, {
+                      method: 'GET',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      }
+                    })
+                    .then(response => {
+                      // 检查响应状态码
+                      if (!response.ok) {
+                        throw new Error('网络响应不是ok状态');
+                      }
+                      alert("扫码登录成功")
+                    })
+                    .catch(error => {
+                      // 在这里处理错误
+                      console.error('请求用户信息失败:', error);
+                      document.getElementById('user-info').textContent = '无法加载用户信息。';
+                    });
+    }
+
+    function handleFileSelect() {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(fileEvent) {
+            const img = new Image();
+            img.onload = function(imgEvent) {
+                const canvas = document.getElementById('canvas');
+                canvas.hidden = false;
+                const context = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    const uJson = JSON.parse(document.getElementById('user-info').textContent);
+                    fetch('http://127.0.0.1:8080/mobile/scan?code=' + code.data + '&username=' + uJson.username + '&token=' + uJson.token, {
+                      method: 'GET',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      }
+                    })
+                    .then(response => {
+                      // 检查响应状态码
+                      if (!response.ok) {
+                        throw new Error('网络响应不是ok状态');
+                      }
+                      return response.json(); // 解析JSON数据
+                    })
+                    .then(data => {
+                      // 在这里处理你的数据
+                      document.getElementById('token-info').textContent = data.code;
+                      const btn = document.getElementById('confirm');
+                      btn.hidden = false;
+                    })
+                    .catch(error => {
+                      // 在这里处理错误
+                      console.error('请求用户信息失败:', error);
+                      document.getElementById('user-info').textContent = '无法加载用户信息。';
+                    });
+                } else {
+                    console.info("未能识别到二维码，请确保图片清晰且完整。");
+                }
+            }
+            img.src = fileEvent.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+</script>
+
+</body>
+</html>

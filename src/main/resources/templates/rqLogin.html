@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>扫码登录示例</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      text-align: center;
+      padding-top: 50px;
+    }
+    #qrcode {
+      margin: 0 auto;
+      width: 300px;
+      height: 300px;
+      position: relative;
+    }
+    #qr-image {
+      width: 100%;
+      height: auto;
+      border: 4px solid #ddd;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    #tip {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #666;
+    }
+    .success-message {
+      color: green;
+    }
+    .scan-message {
+      color: blue;
+    }
+  </style>
+</head>
+<body>
+<div id="qrcode">
+  <img id="qr-image" src="http://127.0.0.1:8080/pc/qrCode" alt="QR Code">
+</div>
+<canvas id="qr-canvas" style="display:none;"></canvas>
+<p id="tip">请使用APP扫描二维码登录</p>
+
+<script>
+    // 更新提示信息的样式
+    function updateTip(message, className) {
+      const tipElement = document.getElementById('tip');
+      tipElement.textContent = message;
+      tipElement.className = className;
+    }
+    window.onload = function() {
+        const img = document.getElementById("qr-image");
+        const canvas = document.getElementById("qr-canvas");
+        const context = canvas.getContext("2d");
+        // 设置 canvas 的大小与图片一致
+           canvas.width = img.width;
+           canvas.height = img.height;
+           // 将图片绘制到 canvas 上
+           context.drawImage(img, 0, 0, img.width, img.height);
+           // 获取图片的 ImageData
+           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+           // 使用 jsQR 解析二维码
+           const code = jsQR(imageData.data, imageData.width, imageData.height);
+           // 检查是否识别到二维码
+           if (code) {
+           socket = new WebSocket("ws://127.0.0.1:8080/websocket/" + code.data);
+           socket.onopen = function(event) {
+                  console.log("Connected to WebSocket");
+           };
+           socket.onmessage = function(event) {
+              console.log("Received message: " + event.data);
+              const jData = JSON.parse(event.data);
+              if (jData.token) {
+                updateTip("登录成功，pc token为 " + jData.token, 'success-message');
+              } else {
+                updateTip(jData.username + "已扫码", 'scan-message');
+              }
+           };
+           } else {
+               alert("未能识别二维码。");
+           }
+    };
+</script>
+</body>
+</html>
